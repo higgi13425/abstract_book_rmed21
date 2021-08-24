@@ -1,0 +1,71 @@
+---
+title: "abstract_book"
+author: "Peter Higgins"
+date: "8/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(here)
+library(glue)
+#oral_presentations
+read_excel(here("R_Medicine_2021_planning.xlsx"), sheet = 1) %>% slice(-(2:13)) %>% filter(Location=="Crowdcast") %>%  filter(!str_detect(`Type of Presentation`, "Remark")) %>% 
+filter(!str_detect(`Type of Presentation`, "remark")) %>% 
+filter(!str_detect(`Type of Presentation`, "Break")) %>% 
+  filter(!str_detect(`Type of Presentation`, "Spatial")) %>% 
+    filter(!str_detect(`Type of Presentation`, "panel")) %>% 
+  janitor::clean_names() %>% 
+   select(type_of_presentation, full_title,  speaker_1_name, speaker_2_name, speaker_3_name) %>% 
+  unite(speakers, speaker_1_name, speaker_2_name, speaker_3_name, sep = ", ") %>% 
+  mutate(speakers2 = str_extract(speakers, ".+?(?=, NA)")) %>% 
+  mutate(speakers = case_when(
+    is.na(speakers2) ~ speakers,
+    TRUE ~ speakers2
+  )) %>% 
+  select(-speakers2) %>% 
+  mutate(type_of_presentation = case_when(
+    type_of_presentation == "Lightning" ~ "Lightning Talk",
+    type_of_presentation == "Regular" ~ "Regular Talk",
+    TRUE ~ type_of_presentation)) %>% 
+    purrr::set_names(c("type", "title", "presenters")) %>% 
+  filter(presenters != "Erika Helgeson, Elise Palzer") %>% 
+  mutate(number = paste0("O", number = 1:36)) ->
+oral_presentations
+
+# posters
+read_excel(here("R_Medicine_2021_planning.xlsx"), sheet = 4) %>% 
+  janitor::clean_names() %>% 
+  filter(accepted == "yes") %>% 
+  select(poster_number, title, name, type) %>% 
+  mutate(poster_number = paste0("P", poster_number)) %>% 
+  rename("presenters" = name,
+         "number" = poster_number) %>% 
+  relocate(type, title, presenters, number) %>% 
+  mutate(type = "Poster Presentation") ->
+posters
+
+presentations <- bind_rows(oral_presentations, posters)
+
+abstracts <- read_excel(here("abstract-7-13-2021-2.xlsx")) %>% 
+  select(abstract_title, abstract) %>% 
+  rename("title" = abstract_title) 
+
+dataset <- left_join(presentations, abstracts, by = "title")
+```
+
+## Abstract Book for R/Medicine 2021
+
+
+```{r presentations, echo=FALSE, comment=NA}
+dataset %>% 
+  glue_data("Presenters: {presenters} \n Presentation Type: {type} \n Presentation: {number} \n Title: {title} \n  Abstract: {abstract} \n \n")
+
+# rendered with
+# rmarkdown::render("abstract_book.Rmd", clean = FALSE)
+# to keep the *.md file
+```
+
+
